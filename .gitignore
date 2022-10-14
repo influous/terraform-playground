@@ -1,0 +1,10 @@
+# Terraform dir
+.terraform/*
+
+# State files
+*.tfstate
+*.tfstate.*
+
+# Variable files that may include sensitive data
+terraform-staging.tfvars
+terraform-prod.tfvars
