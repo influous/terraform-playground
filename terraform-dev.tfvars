@@ -1,3 +1,7 @@
-environment = "DEV"
-
-cidr_blocks = [{ cidr_block = "10.0.0.0/16", name = "dev-vpc" }, { cidr_block = "10.0.10.0/24", name = "dev-subnet" }]
+vpc_cidr_block      = "10.0.0.0/16"
+subnet_cidr_block   = "10.0.10.0/24"
+avail_zone          = "eu-central-1a"
+env_prefix          = "dev"
+allowed_ips         = "146.70.107.218/32"
+instance_type       = "t2.micro"
+public_key_location = "C:\\Users\\tobias\\.ssh\\infx-key.pub"
