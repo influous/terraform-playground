@@ -9,3 +9,7 @@
 terraform-dev.tfvars
 terraform-staging.tfvars
 terraform-prod.tfvars
+
+
+# macOS system file
+.DS_Store
