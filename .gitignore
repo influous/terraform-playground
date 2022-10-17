@@ -6,5 +6,6 @@
 *.tfstate.*
 
 # Variable files that may include sensitive data
+terraform-dev.tfvars
 terraform-staging.tfvars
 terraform-prod.tfvars

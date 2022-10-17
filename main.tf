@@ -8,58 +8,106 @@ terraform {
 }
 
 provider "aws" {
-  region     = "eu-central-1"
+  region = var.region
 }
 
-variable "cidr_blocks" {
-  description = "cidr blocks and names for vpc and subnets"
-  type        = list(object({ cidr_block = string, name = string }))
-}
-
-variable "vpc_cidr_block" {
-  description = "vpc cidr block"
-  default     = "10.0.0.0/16"
-  type        = string # accepted value type, constraint
-}
-
-variable "environment" {
-  description = "development environment"
-}
-
-resource "aws_vpc" "dev-vpc" {
-  cidr_block = var.cidr_blocks[0].cidr_block
+resource "aws_vpc" "infx-vpc" {
+  cidr_block = var.vpc_cidr_block
   tags = {
-    Name : var.cidr_blocks[0].name
+    Name : "${var.env_prefix}-vpc"
   }
 }
 
-resource "aws_subnet" "dev-subnet-1" {
-  vpc_id            = aws_vpc.dev-vpc.id
-  cidr_block        = var.cidr_blocks[1].cidr_block
-  availability_zone = "eu-central-1a"
+resource "aws_subnet" "infx-subnet-1" {
+  vpc_id            = aws_vpc.infx-vpc.id
+  cidr_block        = var.subnet_cidr_block
+  availability_zone = var.avail_zone
   tags = {
-    Name : var.cidr_blocks[1].name
+    Name : "${var.env_prefix}-subnet-1"
   }
 }
 
-data "aws_vpc" "existing-vpc" {
-  default = true
-}
-
-# Add a new subnet alongside the existing default subnets in the region
-resource "aws_subnet" "dev-subnet-2" {
-  vpc_id            = data.aws_vpc.existing-vpc.id
-  cidr_block        = "172.31.48.0/20"
-  availability_zone = "eu-central-1a"
+resource "aws_internet_gateway" "infx-igw" {
+  vpc_id = aws_vpc.infx-vpc.id
   tags = {
-    Name : "subnet-1-default"
+    Name : "${var.env_prefix}-igw"
   }
 }
 
-output "dev-vpc-id" {
-  value = aws_vpc.dev-vpc.id
+data "aws_ami" "latest-amz-image" {
+  most_recent = true
+  owners      = ["amazon"]
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-kernel-5.10-hvm-*-x86_64-gp2"]
+  }
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
 }
 
-output "dev-subnet-id" {
-  value = aws_subnet.dev-subnet-1.id
+resource "aws_instance" "infx-server" {
+  ami           = data.aws_ami.latest-amz-image.id
+  instance_type = var.instance_type
+
+  subnet_id              = aws_subnet.infx-subnet-1.id
+  vpc_security_group_ids = [aws_security_group.infx-sg.id]
+  availability_zone      = var.avail_zone
+
+  associate_public_ip_address = true
+  key_name                    = "devops-maven"
+
+  user_data = file("entry-script.sh")
+
+  tags = {
+    Name = "${var.env_prefix}-server"
+  }
+
+}
+
+resource "aws_route_table" "infx-route-table" {
+  vpc_id = aws_vpc.infx-vpc.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.infx-igw.id
+  }
+  tags = {
+    Name : "${var.env_prefix}-rtb"
+  }
+}
+
+resource "aws_route_table_association" "a-rtb-subnet" {
+  subnet_id      = aws_subnet.infx-subnet-1.id
+  route_table_id = aws_route_table.infx-route-table.id
+}
+
+resource "aws_security_group" "infx-sg" {
+  name   = "infx-sg"
+  vpc_id = aws_vpc.infx-vpc.id
+
+  ingress { # can also be a range, from_port=0 to_port=200
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.allowed_ips]
+  }
+
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress { # outgoing requests on any port, any protocol
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name : "${var.env_prefix}-sg"
+  }
 }
